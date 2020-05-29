@@ -31,6 +31,23 @@ class Site(object):
        
         self.name = name
         self.ref_mark = ref_mark
+        self.structures = []
+        self.renderer = SiteRenderer(self)
+
+    def add_structure(self, structure):
+        if not isinstance(structure, Structure):
+            raise ValueError("Cannot add %s to a Site, it must be a Structure" % (type(structure)))
+        self.structures.append(structure)
+
+
+    def get_kml(self):
+        '''
+        Render the Site as KML
+        '''
+        return self.renderer.get_kml()
+
+
+    
 
 class SiteRenderer(object):
     '''
@@ -51,28 +68,86 @@ class SiteRenderer(object):
         k.append(d)
         # nf = kml.Folder(ns, 'B1', 'building 1', 'Building one')
         # d.append(nf)
+
+        # render the site reference mark as a KML Placemark
         p = kml.Placemark(ns, 'ref_mark', self.site.name, 'Reference survey mark')
         p.geometry = self.site.ref_mark
         d.append(p)
+
+        # compute the UTM coords of the Site reference point
+
+        crs = get_epsg(self.site.ref_mark)
+        site_UTM = get_UTM_from_long_lat(self.site.ref_mark)
+        project_UTM_to_WGS84 = partial(
+            pyproj.transform,
+            pyproj.Proj(init=crs),
+            pyproj.Proj(init='epsg:4326'))
+
+        folder = kml.Folder(ns, 'Structures', 'Structures','Structures on the site')
+        d.append(folder)
+
+        # render each Structure 
+
+        for s in self.site.structures:
+            name = s.name
+            # work with the outline of the structure
+            outline = s.geometry.convex_hull
+            # move outline into UTM coordinates for the site
+            outline = translate(outline, xoff=site_UTM.x, yoff=site_UTM.y)
+            # and transform to WGS84
+            outline = transform(project_UTM_to_WGS84, outline)
+
+            # place the outline in Structures folder
+            p = kml.Placemark(ns, name, name, "Plan of %s" % (name,))
+            p.geometry = outline
+            folder.append(p)
+           
+        # return the KML 
+
         return k.to_string(prettyprint=True)
 
 
-class Collection(MultiPolygon):
-    def __init__(self, polygons=[]):
-        super(Collection, self).__init__(polygons)
+class Structure(object):
+    '''
+    A named collection of Polygons representing a building or other construction
+    on a Site. A structure is assembled by adding Polygons to the Structure. 
+    The extent of the final structure is determined by the outline of the polygons
+    Polygon dimensions and locations are expressed in metres
+    The structure may be moved within it's own reference frame, only when a
+    Structure is added to a Site is it's position on the Earth's surface determined
+    '''
+    def __init__(self, name='Name of structure', polygons=[]):
+        self.name = name
+        self.geometry = MultiPolygon(polygons)
 
     def add(self, polygon):
-        all = [p for p in self]
-        all.append(polygon)
-        return Collection(all)
+        '''
+        Add the specified polygon to the Structure and return a new Structure 
+        representing the assembly
+        '''
+        pgs = [p for p in self.geometry]
+        pgs.append(polygon)
+        self.geometry = MultiPolygon(pgs)
+        return self
 
-    def move(self, xoff=0.0, yoff=0.0):
-        return translate(self, xoff=xoff, yoff=yoff, zoff=0.0)
+    def move(self, east_metres=0.0, north_metres=0.0):
+        '''
+        Move the Structure by the specified distance 
+        To move south specify a negative value for north_metres. Same for west
+        '''
+        self.geometry = translate(self.geometry, xoff=east_metres, yoff=north_metres, zoff=0.0)
+        return self
 
     def rotate(self, angle_deg, origin='center'):
-        # Rotate CCW around origin (which may be 'centre', 'centroid' or a Point)
-        # print "origin=", origin
-        return rotate(self, angle=angle_deg, origin=origin, use_radians=False)    
+        '''
+        Rotate the structure CCW around origin (which may be 'centre', 'centroid'
+        or a specified Point)
+        '''
+        self.geometry = rotate(self.geometry, angle=angle_deg, origin=origin, use_radians=False)  
+        return self  
+
+    def __str__(self):
+        return "Structure %s with %d components" % (self.name, len(self.geometry))
 
 
 
