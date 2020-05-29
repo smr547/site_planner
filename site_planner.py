@@ -14,6 +14,8 @@ from fastkml import kml
 def Rectangle(origin=Point(0,0), width=1.0, height=1.0):
     return box(origin.x, origin.y, origin.x+width, origin.y+height)
 
+def Circle(origin=Point(0,0), radius=10.0):
+    return origin.buffer(radius)
 
 class Site(object):
     '''
@@ -91,14 +93,14 @@ class SiteRenderer(object):
         for s in self.site.structures:
             name = s.name
             # work with the outline of the structure
-            outline = s.geometry.convex_hull
+            outline = s.geometry.buffer(0)
             # move outline into UTM coordinates for the site
             outline = translate(outline, xoff=site_UTM.x, yoff=site_UTM.y)
             # and transform to WGS84
             outline = transform(project_UTM_to_WGS84, outline)
 
             # place the outline in Structures folder
-            p = kml.Placemark(ns, name, name, "Plan of %s" % (name,))
+            p = kml.Placemark(ns, name, name, "Footprint of %s" % (name,))
             p.geometry = outline
             folder.append(p)
            
