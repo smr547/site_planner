@@ -9,7 +9,7 @@ Build a site plan for your new home or farm and have it displayed on Google Eart
 Each site plan is a simple python program
 
 ## Publishing your plans
-[publish_plan.py](./publish_plan.py) takes a plan from the [plans directory]/(./plans)
+[publish_plan.py](./publish_plan.py) takes a plan from the [plans directory](./plans)
 and publishes the resulting KML file to the [served_plans directory](./served_plans)
 
 ## Serving the KML
