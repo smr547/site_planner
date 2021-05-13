@@ -4,6 +4,7 @@ from functools import partial
 import pyproj
 from shapely.ops import transform
 from fastkml import kml
+from fastkml.styles import LineStyle, Style
 
 
 
@@ -66,7 +67,9 @@ class SiteRenderer(object):
         '''
         k = kml.KML()
         ns = '{http://www.opengis.net/kml/2.2}'
-        d = kml.Document(ns, self.site.name, self.site.name, "Site plan for %s" % (self.site.name))
+        ls = LineStyle(color="ffffff00", width=0.5)
+        s1 = Style(id="thin_border", styles = [ls])
+        d = kml.Document(ns, self.site.name, self.site.name, "Site plan for %s" % (self.site.name), styles=[s1])
         k.append(d)
         # nf = kml.Folder(ns, 'B1', 'building 1', 'Building one')
         # d.append(nf)
@@ -100,7 +103,7 @@ class SiteRenderer(object):
             outline = transform(project_UTM_to_WGS84, outline)
 
             # place the outline in Structures folder
-            p = kml.Placemark(ns, name, name, "Footprint of %s" % (name,))
+            p = kml.Placemark(ns, name, name, s.description, styleUrl="#thin_border")
             p.geometry = outline
             folder.append(p)
            
@@ -118,8 +121,11 @@ class Structure(object):
     The structure may be moved within it's own reference frame, only when a
     Structure is added to a Site is it's position on the Earth's surface determined
     '''
-    def __init__(self, name='Name of structure', polygons=[]):
+    def __init__(self, name='Name of structure', description=None, polygons=[]):
         self.name = name
+        self.description = description
+        if description is None:
+            self.description = "footprint of %s" % (name)
         self.geometry = MultiPolygon(polygons)
 
     def add(self, polygon):
